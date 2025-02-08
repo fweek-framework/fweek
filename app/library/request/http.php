@@ -21,14 +21,15 @@ class Router
     private static $tempRoute;
     private static $nameList = [];
     private static $routes = [];
+    private static $group = false;
 
     private static function check($uri)
     {
         $requestURI = $_SERVER["REQUEST_URI"];
 
         if ($requestURI != "/404") {
-            $parsedURL = parse_url(preg_replace('/\?[^=]+=[^&]*(&.*)?$/', '', $requestURI));
-            $parsedURI = parse_url($uri);
+            $parsedURL = explode("/", preg_replace('/\?[^=]+=[^&]*(&.*)?$/', '', $requestURI));
+            $parsedURI = explode("/", $uri);
 
             if (preg_match('/\{.*?\}/', $uri)) {
 
@@ -107,7 +108,7 @@ class Router
         if (self::check($uri)) {
             self::$status = true;
             self::$controller = $controller;
-        } else {
+        } elseif (self::$group === true) {
             self::$routes[$uri] = $controller;
         }
 
@@ -135,7 +136,7 @@ class Router
 
             self::$status = true;
             self::$controller = $controller;
-        } else {
+        } elseif (self::$group === true) {
             self::$routes[$uri] = [$controller => $requiredParameters];
         }
 
@@ -144,9 +145,11 @@ class Router
 
     public static function group(string $prefix, callable $callback)
     {
-        self::$routes = [];
+        self::$group = true;
 
         call_user_func($callback);
+
+        self::$group = false;
 
         foreach (self::$routes as $route => $controller) {
             $route = $prefix . $route;
@@ -184,7 +187,7 @@ class Router
                     }
                 }
             }
-        } else {
+        } elseif (self::$group === true) {
             self::$routes[$uri] = $view;
         }
 
@@ -200,7 +203,7 @@ class Router
             self::$status = true;
             management::responseCode($responseCode);
             management::redirect("" . $url . "");
-        } else {
+        } elseif (self::$group === true) {
             self::$routes[$uri] = [$url => $responseCode];
         }
 
