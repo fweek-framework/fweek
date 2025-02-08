@@ -95,17 +95,20 @@ class Router
 
         $methodName = $explode[1];
 
+        ob_start();
         $className::$methodName();
+        engine::response(ob_get_clean());
     }
 
     public static function get($uri, $controller)
     {
         self::$tempRoute = $uri;
-        self::$routes[$uri] = $controller;
 
         if (self::check($uri)) {
             self::$status = true;
             self::$controller = $controller;
+        } else {
+            self::$routes[$uri] = $controller;
         }
 
         return new self();
@@ -115,7 +118,6 @@ class Router
     {
         self::$method = "POST";
         self::$tempRoute = $uri;
-        self::$routes[$uri] = [$controller => $requiredParameters];
 
         if (self::check($uri) && isset($_POST)) {
             if ($requiredParameters !== []) {
@@ -133,6 +135,8 @@ class Router
 
             self::$status = true;
             self::$controller = $controller;
+        } else {
+            self::$routes[$uri] = [$controller => $requiredParameters];
         }
 
         return new self();
@@ -168,31 +172,36 @@ class Router
     {
         self::$method = "VIEW";
         self::$tempRoute = $uri;
-        self::$routes[$uri] = $view;
 
         if (self::check($uri)) {
             if (count($view) === 1) {
                 self::$status = true;
                 foreach ($view as $key => $value) {
-                    engine::view($key, isset($value) ? $value : "");
+                    if (is_int($key)) {
+                        engine::view($value);
+                    } else {
+                        engine::view($key, $value);
+                    }
                 }
             }
+        } else {
+            self::$routes[$uri] = $view;
         }
 
         return new self();
     }
 
-    public static function redirect($uri, $url, $responseCode = 301)
+    public static function redirect($uri, $url, $responseCode = 302)
     {
         self::$method = "REDIRECT";
         self::$tempRoute = $uri;
-        self::$routes[$uri] = [$url => $responseCode];
 
         if (self::check($uri)) {
             self::$status = true;
-
             management::responseCode($responseCode);
             management::redirect("" . $url . "");
+        } else {
+            self::$routes[$uri] = [$url => $responseCode];
         }
 
         return new self();
@@ -299,19 +308,23 @@ class Router
         management::set(["routeList" => self::$nameList]);
 
         if (self::$status) {
-            if (is_callable(self::$controller)) {
-                engine::response(container::inject(self::$controller));
-            } else {
-                if (isset($_COOKIE["session-token"])) {
-                    if (hashing::decrypt($_COOKIE["session-token"], management::getUserIP()) !== management::getUserIP()) {
-                        session::destroy();
+            if (self::$method !== "REDIRECT" && self::$method !== "VIEW") {
+                if (is_callable(self::$controller)) {
+                    engine::response(container::inject(self::$controller));
+                } else {
+                    if (isset($_COOKIE["session-token"])) {
+                        if (hashing::decrypt($_COOKIE["session-token"], management::getUserIP()) !== management::getUserIP()) {
+                            session::destroy();
+                        }
                     }
+
+                    self::$status = false;
+                    self::$page = true;
+
+                    self::render(self::$controller);
                 }
-
-                self::$status = false;
-                self::$page = true;
-
-                self::render(self::$controller);
+            } else {
+                return false;
             }
         } elseif ($_SERVER["REQUEST_URI"] !== "/404") {
             management::redirect("/404");
