@@ -112,24 +112,6 @@ class Core
         return new self();
     }
 
-    public function read(string $name)
-    {
-        if (self::$type === "session") {
-            return session::read($name);
-        } else {
-            return false;
-        }
-    }
-
-    public function set(string $name, $value)
-    {
-        if (self::$type === "session") {
-            return session::add($name, $value);
-        } else {
-            return false;
-        }
-    }
-
     public function multiSet(array $values)
     {
         if (self::$type === "session") {
@@ -204,24 +186,6 @@ class Core
         return new self();
     }
 
-    public function value(string $name)
-    {
-        if (self::$type === "var") {
-            return management::readUserVariable($name);
-        } else {
-            return false;
-        }
-    }
-
-    public function add(string $name, $value)
-    {
-        if (self::$type === "var") {
-            return management::setUserVariable($name, $value);
-        } else {
-            return false;
-        }
-    }
-
     /*
     Hashing
     */
@@ -245,6 +209,32 @@ class Core
     {
         if (self::$type === "hash") {
             return hashing::decrypt($text, $key, $ivStatus, $cipherMethod);
+        } else {
+            return false;
+        }
+    }
+
+    /*
+    Ortak variables
+    */
+
+    public function read(string $name)
+    {
+        if (self::$type === "session") {
+            return session::read($name);
+        } elseif (self::$type === "var") {
+            return management::readUserVariable($name);
+        } else {
+            return false;
+        }
+    }
+
+    public function set(string $name, $value)
+    {
+        if (self::$type === "session") {
+            return session::add($name, $value);
+        } elseif (self::$type === "var") {
+            return management::setUserVariable($name, $value);
         } else {
             return false;
         }
