@@ -23,66 +23,76 @@ class Router
     private static $routes = [];
     private static $group = false;
     private static $dispatchStatus = true;
+    private static $parsedURL = [];
+
+    public function __construct()
+    {
+        self::$parsedURL = explode("/", preg_replace('/\?[^=]+=[^&]*(&.*)?$/', '', $_SERVER["REQUEST_URI"]));
+    }
 
     private static function check($uri)
     {
-        $requestURI = $_SERVER["REQUEST_URI"];
+        if (self::$status === false) {
+            $requestURI = $_SERVER["REQUEST_URI"];
 
-        if ($requestURI != "/404") {
-            $parsedURL = explode("/", preg_replace('/\?[^=]+=[^&]*(&.*)?$/', '', $requestURI));
-            $parsedURI = explode("/", $uri);
+            if ($requestURI != "/404") {
+                $parsedURL = self::$parsedURL;
+                $parsedURI = explode("/", $uri);
 
-            if (preg_match('/\{.*?\}/', $uri)) {
+                if (preg_match('/\{.*?\}/', $uri)) {
 
-                foreach ($parsedURI as $key => $value) {
-                    if (preg_match('/\{[^}]+\?\}/', $value)) {
-                        if (count($parsedURL) != count($parsedURI)) {
-                            unset($parsedURI[$key]);
+                    foreach ($parsedURI as $key => $value) {
+                        if (preg_match('/\{[^}]+\?\}/', $value)) {
+                            if (count($parsedURL) != count($parsedURI)) {
+                                unset($parsedURI[$key]);
+                            }
                         }
                     }
-                }
 
-                foreach ($parsedURL as $key => $value) {
-                    if (!isset($parsedURI[$key]) || ($key != 0 && empty($value)) || count($parsedURI) != count($parsedURL)) {
-                        if (!preg_match('/^{\*[a-zA-Z_]\w*}$/', $parsedURI[array_key_last($parsedURI)])) {
-                            return false;
-                        } else {
-                            foreach ($parsedURI as $key => $value) {
-                                if ($key < $parsedURI[array_key_last($parsedURI)] && !isset($parsedURL[$key])) {
-                                    return false;
+                    foreach ($parsedURL as $key => $value) {
+                        if (!isset($parsedURI[$key]) || ($key != 0 && empty($value)) || count($parsedURI) != count($parsedURL)) {
+                            if (!preg_match('/^{\*[a-zA-Z_]\w*}$/', $parsedURI[array_key_last($parsedURI)])) {
+                                return false;
+                            } else {
+                                foreach ($parsedURI as $key => $value) {
+                                    if ($key < $parsedURI[array_key_last($parsedURI)] && !isset($parsedURL[$key])) {
+                                        return false;
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                foreach ($parsedURI as $key => $value) {
-                    if (preg_match('/\{.*?\}/', $value)) {
-                        $_GET[str_replace(["{", "}", "?"], "", $value)] = $parsedURL[$key];
-                    }
-                }
-
-                if (preg_match('/^{\*[a-zA-Z_]\w*}$/', $parsedURI[array_key_last($parsedURI)])) {
-                    $getValue = [];
-
-                    foreach ($parsedURL as $key => $value) {
-                        if ($key >= array_key_last($parsedURI)) {
-                            array_push($getValue, $value);
+                    foreach ($parsedURI as $key => $value) {
+                        if (preg_match('/\{.*?\}/', $value)) {
+                            $_GET[str_replace(["{", "}", "?"], "", $value)] = $parsedURL[$key];
                         }
                     }
 
-                    $_GET[str_replace(["{", "}", "*"], "", $parsedURI[array_key_last($parsedURI)])] = implode("/", $getValue);
+                    if (preg_match('/^{\*[a-zA-Z_]\w*}$/', $parsedURI[array_key_last($parsedURI)])) {
+                        $getValue = [];
+
+                        foreach ($parsedURL as $key => $value) {
+                            if ($key >= array_key_last($parsedURI)) {
+                                array_push($getValue, $value);
+                            }
+                        }
+
+                        $_GET[str_replace(["{", "}", "*"], "", $parsedURI[array_key_last($parsedURI)])] = implode("/", $getValue);
+                    }
+
+                    return true;
+                } elseif ($uri == $requestURI) {
+                    return true;
                 }
+            } elseif (!self::$page) {
+                self::$page = true;
 
-                return true;
-            } elseif ($uri == $requestURI) {
-                return true;
+                management::responseCode(404);
+                management::load("/app/content/views/404.php");
             }
-        } elseif (!self::$page) {
-            self::$page = true;
-
-            management::responseCode(404);
-            management::load("/app/content/views/404.php");
+        } else {
+            return false;
         }
     }
 
@@ -90,9 +100,16 @@ class Router
     {
         $explode = explode("@", $controller);
 
-        foreach (request::getAPI($explode[0]) as $key => $value) {
-            $className = $key;
-            require_once(__ROOT__ . "/app/api/" . $value);
+        if (self::$method === "GET") {
+            foreach (request::getController($explode[0]) as $key => $value) {
+                $className = $key;
+                require_once(__ROOT__ . "/app/controller/" . $value);
+            }
+        } else {
+            foreach (request::getAPI($explode[0]) as $key => $value) {
+                $className = $key;
+                require_once(__ROOT__ . "/app/api/" . $value);
+            }
         }
 
         $methodName = $explode[1];
@@ -107,6 +124,7 @@ class Router
         self::$tempRoute = $uri;
 
         if (self::check($uri)) {
+            self::$method = "GET";
             self::$dispatchStatus = true;
             self::$status = true;
             self::$controller = $controller;
@@ -119,10 +137,10 @@ class Router
 
     public static function api($uri, $controller, array $requiredParameters = [])
     {
-        self::$method = "POST";
         self::$tempRoute = $uri;
 
         if (self::check($uri) && isset($_POST)) {
+            self::$method = "POST";
             self::$dispatchStatus = true;
 
             if ($requiredParameters !== []) {
@@ -177,11 +195,11 @@ class Router
 
     public static function view($uri, array $view)
     {
-        self::$method = "VIEW";
         self::$tempRoute = $uri;
 
         if (self::check($uri)) {
             if (count($view) === 1) {
+                self::$method = "VIEW";
                 self::$dispatchStatus = false;
                 self::$status = true;
                 foreach ($view as $key => $value) {
@@ -201,10 +219,10 @@ class Router
 
     public static function redirect($uri, $url, $responseCode = 302)
     {
-        self::$method = "REDIRECT";
         self::$tempRoute = $uri;
 
         if (self::check($uri)) {
+            self::$method = "REDIRECT";
             self::$dispatchStatus = false;
             self::$status = true;
             management::responseCode($responseCode);
