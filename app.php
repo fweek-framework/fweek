@@ -10,6 +10,9 @@ request::handle(
         ],
         "controllers" => [
             "home" => ["controller" => "/base.php"]
+        ],
+        "api" => [
+            "test" => ["update" => "/example.php"]
         ]
     ]
 );
