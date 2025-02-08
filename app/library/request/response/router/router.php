@@ -4,10 +4,12 @@ namespace Fweek\Core;
 
 use HTTP\Server\Model;
 use HTTP\Request\Management;
+use Logger;
 
 class Router
 {
-    private $type;
+    private static $uri;
+    private static $type;
 
     /*
     Model
@@ -40,10 +42,36 @@ class Router
 
     public function get(string $name)
     {
+        $routeList = management::value("routeList");
         if (self::$type === "router") {
-            return management::value("routeList")[$name];
+            if (preg_match('/\{.*?\}/', $routeList[$name])) {
+                self::$uri = $routeList[$name];
+                return $this;
+            } else {
+                return $routeList[$name];
+            }
         } else {
             return false;
         }
+    }
+
+    public function params(array $parameters)
+    {
+        $parsedURI = explode("/", self::$uri);
+
+        foreach ($parsedURI as $key => $value) {
+            if (preg_match('/\{.*?\}/', $value)) {
+                $cleanParameter = str_replace(["{", "}", "?", "*"], "", $value);
+
+                if (!isset($parameters[$cleanParameter])) {
+                    Logger::error("There are some missing GET parameters while generating link! -> " . $cleanParameter . "", "Router");
+                    return false;
+                }
+
+                self::$uri = str_replace($cleanParameter, $parameters[$cleanParameter], str_replace(["{", "}", "?", "*"], "", self::$uri));
+            }
+        }
+
+        return self::$uri;
     }
 }
