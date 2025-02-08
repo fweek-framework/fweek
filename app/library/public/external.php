@@ -4,44 +4,51 @@ namespace Public\External;
 
 use Normalizer;
 use Logger;
-use HTTP\Request\Management;
 
 class control
 {
 
     public static function filter($value)
     {
-        if (preg_match('/\x00|%00|%2500/i', $value)) {
+        if (preg_match('/(\/|%|\\\\)0{2}|\\x00/i', $value)) {
             return false;
         }
 
         return true;
     }
 
-    public static function get($location, $rootDir)
+    public static function escape($location)
     {
         if (class_exists('Normalizer')) {
-            $location = Normalizer::normalize($location, Normalizer::FORM_C);
+            $location = Normalizer::normalize(urldecode($location), Normalizer::FORM_C);
         }
 
-        $location = str_replace(chr(0), '', $location);
+        $location = str_replace("\0", '', str_replace("\\", "/", $location));
         $location = preg_replace('/\.\.\//', '', $location);
+        $location = preg_replace('#(\.\./)+#', '', $location);
+        $location = str_replace('..', '', $location);
 
+        return filter_var($location, FILTER_SANITIZE_URL);
+    }
+
+    public static function get($location, $rootDir)
+    {
+        $location = self::escape($location);
+        $rootDir = realpath($rootDir);
         $requestedFile = realpath($rootDir . '/' . $location);
 
+        if (!is_file($requestedFile) || !is_readable($requestedFile)) {
+            Logger::error("The file is not accesable or readable!", "EXTERNAL");
+            return false;
+        }
+
+        if (is_link($requestedFile)) {
+            Logger::error("Symlink is not allowed!", "EXTERNAL");
+            return false;
+        }
+
         if (self::filter($requestedFile)) {
-
-            if (!is_file($requestedFile) || !is_readable($requestedFile)) {
-                Logger::error("The file is not accesable or readable!", "EXTERNAL");
-                return false;
-            }
-
-            if (is_link($requestedFile)) {
-                Logger::error("Symlink is not allowed!", "EXTERNAL");
-                return false;
-            }
-
-            if ($requestedFile !== false && strpos($requestedFile, $rootDir) !== false) {
+            if ($requestedFile !== false && strncmp($requestedFile, $rootDir, strlen($rootDir)) !== false) {
                 $fileExtension = pathinfo($requestedFile, PATHINFO_EXTENSION);
                 $mimeTypes = [
                     'jpg'  => 'image/jpeg',
@@ -69,11 +76,11 @@ class control
 
                 return true;
             } else {
-                Logger::error("The file does not exist or you try to access an not accesable file!, <IP: " . management::getUserIP() . ">", "EXTERNAL");
+                Logger::error("The file does not exist or you try to access an not accesable file!", "EXTERNAL");
                 return false;
             }
         } else {
-            Logger::warning("Request contains dangerous payloads!, <IP: " . management::getUserIP() . ">", "EXTERNAL");
+            Logger::warning("Request contains dangerous payloads!", "EXTERNAL");
             return false;
         }
     }
