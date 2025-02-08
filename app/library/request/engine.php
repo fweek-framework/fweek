@@ -47,9 +47,7 @@ class Engine
             ob_start();
 
             require_once $tempFile;
-            self::response(ob_get_contents());
-
-            ob_get_clean();
+            self::response(ob_get_clean());
             unlink($tempFile);
         } else {
             Logger::error("This view does not exist!", "ENGINE", $path);
