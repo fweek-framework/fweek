@@ -9,7 +9,6 @@ class Model
         $null = 1;
 
         if ($null == 1) {
-            core::var()->set("net", "sakso");
             core::var()->set("null", "true");
         } else {
             core::var()->set("null", "false");
