@@ -22,6 +22,7 @@ class Router
     private static $nameList = [];
     private static $routes = [];
     private static $group = false;
+    private static $methods = [];
     private static $dispatchStatus = true;
     private static $parsedURL = [];
 
@@ -129,6 +130,7 @@ class Router
             self::$status = true;
             self::$controller = $controller;
         } elseif (self::$group === true) {
+            self::$methods[$uri] = "GET";
             self::$routes[$uri] = $controller;
         }
 
@@ -159,6 +161,7 @@ class Router
             self::$status = true;
             self::$controller = $controller;
         } elseif (self::$group === true) {
+            self::$methods[$uri] = "POST";
             self::$routes[$uri] = [$controller => $requiredParameters];
         }
 
@@ -174,23 +177,26 @@ class Router
         self::$group = false;
 
         foreach (self::$routes as $route => $controller) {
-            $route = $prefix . $route;
-            if (self::check($route)) {
-                if (self::$method === "VIEW") {
-                    self::view($route, $controller);
-                } elseif (self::$method === "POST") {
+            $newRoute = $prefix . $route;
+            if (self::check($newRoute)) {
+                if (self::$methods[$route] === "VIEW") {
+                    self::view($newRoute, $controller);
+                } elseif (self::$methods[$route] === "POST") {
                     foreach ($controller as $callback => $parameters) {
-                        self::api($route, $callback, $parameters);
+                        self::api($newRoute, $callback, $parameters);
                     }
-                } elseif (self::$method === "REDIRECT") {
+                } elseif (self::$methods[$route] === "REDIRECT") {
                     foreach ($controller as $redirect => $responseCode) {
-                        self::redirect($route, $redirect, $responseCode);
+                        self::redirect($newRoute, $redirect, $responseCode);
                     }
-                } else {
-                    self::get($route, $controller);
+                } elseif (self::$methods[$route] === "GET") {
+                    self::get($newRoute, $controller);
                 }
             }
         }
+
+        self::$routes = [];
+        self::$methods = [];
     }
 
     public static function view($uri, array $view)
@@ -211,6 +217,7 @@ class Router
                 }
             }
         } elseif (self::$group === true) {
+            self::$methods[$uri] = "VIEW";
             self::$routes[$uri] = $view;
         }
 
@@ -228,6 +235,7 @@ class Router
             management::responseCode($responseCode);
             management::redirect("" . $url . "");
         } elseif (self::$group === true) {
+            self::$methods[$uri] = "REDIRECT";
             self::$routes[$uri] = [$url => $responseCode];
         }
 
