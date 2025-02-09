@@ -17,46 +17,6 @@ class Engine
             $content = preg_replace('/@csrf/', csrf::generateInput(), $content);
         }
 
-        $content = preg_replace_callback(
-            '/@model\s*\(\s*[\'"](.*?)[\'"]\s*\)/',
-            function ($matches) {
-                Model::load(trim($matches[1]));
-                return "";
-            },
-            $content
-        );
-
-        $content = preg_replace_callback(
-            '/@if\s*\((.*?)\)/',
-            function ($matches) {
-                $condition = management::readUserVariable($matches[1]);
-                return "<?php if ($condition): ?>";
-            },
-            $content
-        );
-
-        $content = preg_replace_callback(
-            '/@elseif\s*\((.*?)\)/',
-            function ($matches) {
-                $condition = management::readUserVariable($matches[1]);
-                return "<?php elseif ($condition): ?>";
-            },
-            $content
-        );
-
-        $content = preg_replace('/@else/', '<?php else: ?>', $content);
-        $content = preg_replace('/@endif/', '<?php endif; ?>', $content);
-        $content = preg_replace_callback(
-            '/\{\{\s*(.*?)\s*\}\}/',
-            function ($matches) {
-                $variable = trim(management::readUserVariable($matches[1]));
-                return "<?php echo '$variable'; ?>";
-            },
-            $content
-        );
-
-        $content = preg_replace('/^\s*$/m', '', $content);
-
         return $content;
     }
 
@@ -88,7 +48,7 @@ class Engine
             ob_start();
 
             require_once $tempFile;
-            self::response(preg_replace('/^\s*$/m', '', ob_get_clean()));
+            self::response(ob_get_clean());
 
             unlink($tempFile);
         } else {
